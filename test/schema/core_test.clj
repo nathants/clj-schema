@@ -7,6 +7,12 @@
 
 ;; clojure specific tests
 
+(deftest cons-and-list-are-synonyms
+  (doseq [schema ['(Long String) `(Long String)]]
+    (is (= [1 "2"] (validate schema [1 "2"])))
+    (is (thrown? AssertionError (validate schema [1 2])))
+    (is (thrown? AssertionError (validate schema ["1" 2])))))
+
 (deftest recursive-types
   (def schema {String [:U Long String #'schema]})
   (is (= {"a" {"number" 1}} (validate schema {"a" {"number" 1}})))
