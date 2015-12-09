@@ -73,7 +73,7 @@
                 (doseq [[k v] schema]
                   (when (not (contains? @-value k))
                     (cond
-                      (and (or (instance? Cons v) (list? v) (vector? v))
+                      (and (sequential? v)
                            (= :O (first v)))
                       (do (assert (= 3 (count v)) (str ":O schema should be [:O, schema, default-value], not: " v))
                           (vswap! -value assoc k (apply -validate (rest v))))
@@ -81,9 +81,7 @@
                       (throw (AssertionError. (error-message schema value "is missing required key"))))))
                 @-value)))
         (= schema :Any) value
-        (or (instance? Cons schema)
-            (list? schema)
-            (vector? schema))
+        (sequential? schema)
         (do (assert (or (sequential? value) (get -schema-commands (first schema))) (error-message schema value "is not sequential"))
             (cond
               (get -schema-commands (first schema))
@@ -120,8 +118,7 @@
               (vector? schema)
               (do (assert (= (count schema) 1) (str "vector schemas represent homogenous seqs and must contain a single schema: " schema))
                   (mapv #(-validate (first schema) %) value))
-              (or (list? schema)
-                  (instance? Cons schema))
+              :else
               (do (assert (= (count schema) (count value)) (error-message schema value "mismatched length of schema"))
                   (mapv -validate schema value))))
         (class? schema)
