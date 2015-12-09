@@ -158,7 +158,7 @@
         _ (assert (->> sig (filter #{'->}) count (= 1)) (str "sig should have '-> in it, not: " sig))
         [arg-schema _ [return-schema]] (partition-by #{'->} sig)]
     `(defn ~name
-       ~doc
+       {:doc ~doc :arglists '(~args)} ;; TODO add support for arity overloading
        [& args#]
        (let [~args (with-update-exception AssertionError (str "schema check failed for args to fn: " ~name)
                      (validate (list ~@arg-schema) args#))]
