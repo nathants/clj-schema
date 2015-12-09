@@ -40,6 +40,14 @@
     (is (= 0 (first xs)))
     (is (thrown? AssertionError (second xs)))))
 
+;; TODO variadic sig support
+;; (deftest test-defnv-variadic
+;;   (defnv f
+;;     [& String -> String]
+;;     [& xs]
+;;     (apply str xs))
+;;   (is (= "12" (f "1" "2" "3"))))
+
 (deftest eager-and-lazy-seq-validation
   (let [schema [Long]]
     (testing "eager validation"

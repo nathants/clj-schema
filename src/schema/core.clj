@@ -161,6 +161,6 @@
        ~doc
        [& args#]
        (let [~args (with-update-exception AssertionError (str "schema check failed for args to fn: " ~name)
-                     (validate ~(vec arg-schema) args#))]
+                     (validate '~arg-schema args#))]
          (with-update-exception AssertionError (str "schema check failed for return value from fn: " ~name)
            (validate ~return-schema (do ~@body)))))))
