@@ -8,6 +8,7 @@
 ;; clojure specific tests
 
 (deftest anything-sequential-that-is-not-a-vector-is-a-list
+  ;; NOTE use `() not '() for literal lists because it resolves symbols in place.
   (doseq [schema [(concat [Long] [String]) '(Long String) `(Long String)]]
     (is (= [1 "2"] (validate schema [1 "2"])))
     (is (thrown? AssertionError (validate schema [1 2])))
