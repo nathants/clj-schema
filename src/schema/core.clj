@@ -172,6 +172,8 @@
            [Long Long -> Long]
            [x y]
            (+ x y))"
+  ;; TODO support generics? [[:T] -> [:T]]
+  ;; TODO completely ignore & {:keys [blah]}
   [& forms]
   (let [[name doc sig args & body]
         (if (string? (second forms))
