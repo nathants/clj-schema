@@ -159,12 +159,15 @@
   [schema value & {:keys [exact-match]}]
   (if (System/getenv "DISABLE_SCHEMA")
     value
-    `(if (and (vector? ~schema)
-              (= (count ~schema) 1)
-              (instance? LazySeq ~value)
-              (not (realized? ~value)))
-       (map #(-validate (first ~schema) % :exact-match ~exact-match) ~value)
-       (-validate ~schema ~value :exact-match ~exact-match))))
+    `(let [value# ~value
+           schema# ~schema
+           exact-match# ~exact-match]
+       (if (and (vector? schema#)
+                (= (count schema#) 1)
+                (instance? LazySeq value#)
+                (not (realized? value#)))
+         (map #(-validate (first schema#) % :exact-match exact-match#) value#)
+         (-validate schema# value# :exact-match exact-match#)))))
 
 (defmacro defnv
   "define validated function.
