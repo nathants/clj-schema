@@ -3,8 +3,6 @@
   (:require [clojure.test :refer :all]
             [schema.core :refer :all]))
 
-;; TODO core.async chan, manifold defered
-
 ;; clojure specific tests
 
 (deftest anything-sequential-that-is-not-a-vector-is-a-list
@@ -31,6 +29,23 @@
   (is (thrown? AssertionError (f :not-a-string)))
   (is (thrown? AssertionError (f "not 0"))))
 
+(deftest test-defnv-requires-arrow
+  (is (thrown? AssertionError (eval '(schema.core/defnv f
+                                       [nil nil]
+                                       [])))))
+
+(deftest test-defnv-multiple-return-schemas
+  (is (thrown? AssertionError (eval '(schema.core/defnv f
+                                       [-> nil nil]
+                                       [])))))
+
+(deftest test-defnv-no-args
+  (defnv f
+    [-> Number]
+    []
+    1)
+  (is (= 1 (f))))
+
 (deftest test-defnv-lazy-seq
   (defnv f
     [String -> [Number]]
@@ -40,14 +55,6 @@
     (is (instance? LazySeq xs))
     (is (= 0 (first xs)))
     (is (thrown? AssertionError (second xs)))))
-
-;; TODO variadic sig support
-;; (deftest test-defnv-variadic
-;;   (defnv f
-;;     [& String -> String]
-;;     [& xs]
-;;     (apply str xs))
-;;   (is (= "12" (f "1" "2" "3"))))
 
 (deftest eager-and-lazy-seq-validation
   (let [schema [Long]]

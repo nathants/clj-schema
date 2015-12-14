@@ -55,7 +55,6 @@
   [& args]
   (str "\n" (s/join " " (map str args)) "\n"))
 
-;; TODO namespaced keywords? susinct usage? capitalization?
 (def -schema-commands
   #{:U ;; union
     :I ;; intersection
@@ -162,6 +161,7 @@
 
 (defmacro validate
   [schema value & {:keys [exact-match]}]
+  ;; TODO core.async chan, manifold defered
   (if *disable-schema*
     value
     `(let [value# ~value
@@ -182,23 +182,34 @@
            (+ x y))"
   ;; TODO support generics? [[:T] -> [:T]]
   ;; TODO completely ignore & {:keys [blah]}
+  ;; TODO add support for arity overloading
+  ;; TODO variadic sig support
+  ;; (deftest test-defnv-variadic
+  ;;   (defnv f
+  ;;     [& String -> String]
+  ;;     [& xs]
+  ;;     (apply str xs))
+  ;;   (is (= "12" (f "1" "2" "3"))))
   [& forms]
   (let [[name doc sig args & body]
         (if (string? (second forms))
           forms
           (apply vector (first forms) "" (drop 1 forms)))
-        _ (assert (->> sig (filter #{'->}) count (= 1)) (str "\nsig should have '-> in it, not: " sig))
-        [arg-schema _ [return-schema]] (partition-by #{'->} sig)]
+        _ (assert (->> sig (filter #{'->}) count (= 1)) (error-message "sig should have '-> in it, not:" sig))
+        _ (assert (->> sig (partition-by #{'->}) second count (= 1)) (error-message "sig should have only one schema to the right of '->, not:" sig))
+        [arg-schema _ [return-schema]] (if (= '-> (first sig))
+                                         [() nil [(last sig)]]
+                                         (partition-by #{'->} sig))]
     (if *disable-schema*
       `(defn ~name
          ~doc
          ~args
          ~@body)
       `(defn ~name
-         {:doc ~doc :arglists '(~args)} ;; TODO add support for arity overloading
+         {:doc ~doc :arglists '(~args)}
          [& args#]
          (let [~args (with-update-exception AssertionError (str "\nschema check failed for args to fn: " ~name)
                        ;; TODO better to validate each individually with updated exception message about nth pos arg?
-                       (validate (list ~@arg-schema) args#))]
+                       (validate (list ~@arg-schema) (or args# ())))]
            (with-update-exception AssertionError (str "\nschema check failed for return value from fn: " ~name)
              (validate ~return-schema (do ~@body))))))))
