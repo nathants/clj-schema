@@ -1,8 +1,13 @@
 (ns schema.core
+  ;; TODO drop pprint. it uses STM and that is very bad for perf.
+  ;; https://github.com/brandonbloom/fipp
   (:require [clojure.pprint :refer [pprint]]
             [clojure.string :as s])
   (:import clojure.lang.LazySeq
            clojure.lang.Cons))
+
+(def *disable-update-exception* (System/getenv "DISABLE_UPDATE_EXCEPTION"))
+(def *disable-schema* (System/getenv "DISABLE_SCHEMA"))
 
 ;; TODO write backwards compatability checker for two schema values.
 (defn compatible [old new] false)
@@ -17,7 +22,7 @@
 ;; storing it in a stack of try/catches.
 (defmacro with-update-exception
   [cls msg body]
-  (if (System/getenv "DISABLE_UPDATE_EXCEPTION")
+  (if *disable-update-exception*
     body
     `(try
        ~body
@@ -157,7 +162,7 @@
 
 (defmacro validate
   [schema value & {:keys [exact-match]}]
-  (if (System/getenv "DISABLE_SCHEMA")
+  (if *disable-schema*
     value
     `(let [value# ~value
            schema# ~schema
@@ -184,7 +189,7 @@
           (apply vector (first forms) "" (drop 1 forms)))
         _ (assert (->> sig (filter #{'->}) count (= 1)) (str "\nsig should have '-> in it, not: " sig))
         [arg-schema _ [return-schema]] (partition-by #{'->} sig)]
-    (if (System/getenv "DISABLE_SCHEMA")
+    (if *disable-schema*
       `(defn ~name
          ~doc
          ~args
