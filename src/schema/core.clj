@@ -210,6 +210,7 @@
          [& args#]
          (let [~args (with-update-exception AssertionError (str "\nschema check failed for args to fn: " ~name)
                        ;; TODO better to validate each individually with updated exception message about nth pos arg?
-                       (validate (list ~@arg-schema) (or args# ())))]
+                       (validate (list ~@arg-schema) (or args# ())))
+               res# (do ~@body)]
            (with-update-exception AssertionError (str "\nschema check failed for return value from fn: " ~name)
-             (validate ~return-schema (do ~@body))))))))
+             (validate ~return-schema res#)))))))
