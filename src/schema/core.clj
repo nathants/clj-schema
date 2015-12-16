@@ -208,9 +208,10 @@
       `(defn ~name
          {:doc ~doc :arglists '(~args)}
          [& args#]
-         (let [~args (with-update-exception AssertionError (str "\nschema check failed for args to fn: " ~name)
-                       ;; TODO better to validate each individually with updated exception message about nth pos arg?
-                       (validate (list ~@arg-schema) (or args# ())))
+         (assert (= (count args#) (count '~args)) (str "unknown arity: " (count args#)))
+         (let [~args (for [[i# a# s#] (map vector (range) (list ~@arg-schema) (or args# ()))]
+                       (with-update-exception AssertionError (str "\nschema check failed for args to fn: " ~name ", for pos arg: " i#)
+                         (validate a# s#)))
                res# (do ~@body)]
            (with-update-exception AssertionError (str "\nschema check failed for return value from fn: " ~name)
              (validate ~return-schema res#)))))))
