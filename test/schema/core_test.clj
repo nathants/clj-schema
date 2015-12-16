@@ -5,6 +5,9 @@
 
 ;; clojure specific tests
 
+(deftest symbols-as-map-keys-and-vals-are-resolved
+  (= [{"1" 2}] (validate `({String Long}) [{"1" 2}])))
+
 (deftest anything-sequential-that-is-not-a-vector-is-a-list
   ;; NOTE use `() not '() for literal lists because it resolves symbols in place.
   (doseq [schema [(concat [Long] [String]) '(Long String) `(Long String)]]

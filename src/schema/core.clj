@@ -61,6 +61,13 @@
     :O ;; optional
     :fn})
 
+(defn -resolve-symbols
+  [x]
+  (cond
+    (map? x) (reduce-kv #(assoc %1 (-resolve-symbols %2) (-resolve-symbols %3)) {} x)
+    (symbol? x) (resolve x)
+    :else x))
+
 (defn -validate
   [schema value & {:keys [exact-match]}]
   (with-update-exception AssertionError (helpful-message schema value)
@@ -69,7 +76,7 @@
     ;; TODO rewrite py-schema in cljc. use macros. do compile time
     ;; transformations so that type lookup is used instead of long chains
     ;; of conditionals. perf boost?
-    (let [[schema value] (map #(if (symbol? %) (resolve %) %) [schema value])]
+    (let [[schema value] (map -resolve-symbols [schema value])]
       (cond
         ;; TODO suppport validating a manifold deferred
         (map? schema)
