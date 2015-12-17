@@ -79,6 +79,10 @@
     (let [[schema value] (map -resolve-symbols [schema value])]
       (cond
         ;; TODO suppport validating a manifold deferred
+        (set? schema)
+        (do (assert (set? value) (error-message value "is not a set"))
+            (assert (= (count schema) 1) (error-message "set schemas represent homogenous sets and must (= 1 (count schema))"))
+            (set (map #(-validate (first schema) %) value)))
         (map? schema)
         (do (assert (map? value) (error-message value "is not a map"))
             ;; if schema keys are all types, and _value is empty, return. ie, type keys are optional, so {} is a valid {int: int}

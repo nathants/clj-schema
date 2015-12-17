@@ -74,6 +74,14 @@
 
 ;; common tests between python and clojure
 
+(deftest set-schema
+  ;; TODO add to py-schema
+  (let [schema #{Long}]
+    (is (= #{1 2} (validate schema #{1 2})))
+    (is (thrown? AssertionError (validate schema #{1 "2"}))))
+  (let [bad-schema #{Long String}]
+    (is (thrown? AssertionError (validate bad-schema #{1 "2"})))))
+
 (deftest nil-as-schema
   (let [schema {String nil}]
     (is (= {"a" nil} (validate schema {"a" nil})))))
