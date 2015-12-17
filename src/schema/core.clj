@@ -7,7 +7,7 @@
            clojure.lang.Cons))
 
 (def *disable-update-exception* (System/getenv "DISABLE_UPDATE_EXCEPTION"))
-(def *disable-schema* (System/getenv "DISABLE_SCHEMA"))
+(def *disable-schema* (doto (System/getenv "DISABLE_SCHEMA") (->> boolean (println "schemas disabled:"))))
 
 ;; TODO write backwards compatability checker for two schema values.
 (defn compatible [old new] false)
