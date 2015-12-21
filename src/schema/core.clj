@@ -219,7 +219,7 @@
       `(defn ~name
          {:doc ~doc :arglists '(~args)}
          [& args#]
-         (assert (= (count args#) (count '~args)) (str "unknown arity: " (count args#)))
+         (assert (= (count args#) (count '~args)) (str "unknown arity: " (count args#) " for fn: " ~name))
          (let [~args (for [[i# a# s#] (map vector (range) (list ~@arg-schema) (or args# ()))]
                        (with-update-exception AssertionError (str "\nschema check failed for args to fn: " ~name ", for pos arg: " i#)
                          (validate a# s#)))
