@@ -95,16 +95,18 @@
                 (doseq [[k v] value]
                   (with-update-exception AssertionError (str "checking key: " k)
                     (let [value-match (contains? schema k)
-                          type-match (some #{(type k)} (filterv class? (keys schema)))
+                          type-match (some #{(type k)} (filterv class? (keys schema))) ;; TODO sort this filterv for consistent results?
+                          predicate-match (some #(if (% k) %) (filterv fn? (keys schema))) ;; TODO sort this filterv for consistent results?
                           any-match (contains? schema :Any)]
                       (cond
-                        (or value-match type-match any-match)
-                        (let [-schema (get schema (cond value-match k type-match (type k) any-match :Any))]
+                        (or value-match type-match predicate-match any-match)
+                        (let [-schema (get schema (cond value-match k
+                                                        type-match (type k)
+                                                        predicate-match predicate-match
+                                                        any-match :Any))]
                           (vswap! -value assoc k (-validate -schema v)))
-                        exact-match
-                        (throw (AssertionError. (error-message k "does not match schema keys")))
                         :else
-                        nil))))
+                        (assert (not exact-match) (error-message k "does not match schema keys"))))))
                 ;; check for items in schema missing in value, filling in optional value
                 (doseq [[k v] schema]
                   (with-update-exception AssertionError (str "checking key: " k)
@@ -114,7 +116,8 @@
                              (= :O (first v)))
                         (do (assert (= 3 (count v)) (error-message ":O schema should be [:O, schema, default-value]"))
                             (vswap! -value assoc k (apply -validate (rest v))))
-                        (not (class? k))
+                        (not (or (class? k)
+                                 (fn? k)))
                         (throw (AssertionError. (error-message "missing required key:" k)))))))
                 @-value)))
         (= schema :Any) value
@@ -162,7 +165,7 @@
         (do (assert (instance? schema value) (error-message value "is not a" (pretty-class schema)))
             value)
         (fn? schema)
-        (do (assert (schema value) (error-message "failed fn schema"))
+        (do (assert (schema value) (error-message "failed predicate schema"))
             value)
         (var? schema)
         (-validate (var-get schema) value)

@@ -163,8 +163,13 @@
     (is (thrown? AssertionError (validate schema {})))
     (is (thrown? AssertionError (validate schema {"name" "not-a-long"})))))
 
-(deftest test-fn?
+(deftest test-predicate
   (let [schema {String fn?}
         f #()]
     (is (identical? f (get (validate schema {"fn" f}) "fn")))
     (is (thrown? AssertionError (validate schema {"fn" "not-a-fn"})))))
+
+(deftest test-predicate-keys-are-optional
+  (let [schema {string? String}]
+    (is (= {"a" "b"} (validate schema {"a" "b"})))
+    (is (= {} (validate schema {:not-a-str :value-to-drop})))))
