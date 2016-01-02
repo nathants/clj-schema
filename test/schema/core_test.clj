@@ -163,13 +163,67 @@
     (is (thrown? AssertionError (validate schema {})))
     (is (thrown? AssertionError (validate schema {"name" "not-a-long"})))))
 
-(deftest test-predicate
+(deftest predicate
   (let [schema {String fn?}
         f #()]
     (is (identical? f (get (validate schema {"fn" f}) "fn")))
     (is (thrown? AssertionError (validate schema {"fn" "not-a-fn"})))))
 
-(deftest test-predicate-keys-are-optional
+(deftest predicate-keys-are-optional
   (let [schema {string? String}]
     (is (= {"a" "b"} (validate schema {"a" "b"})))
     (is (= {} (validate schema {:not-a-str :value-to-drop})))))
+
+(deftest empty-maps
+  (is (= {} (validate {} {}))))
+
+(deftest type-keys-are-optional
+  (is (= {} (validate {String String} {}))))
+
+(deftest empty-map-exact-match
+  (is (thrown? AssertionError (validate {} {:not :empty} :exact-match true))))
+
+(deftest partial-comparisons-for-testing
+  (let [schema {:blah String
+                :data [{String String}]}
+        data {:blah "foobar"
+              :data [{"a" "b"}
+                     {"c" "d"}
+                     ;; ...
+                     ;; pretend 'data' is something too large to specify as a value literal in a test
+                     ]}]
+    (is (validate schema data))
+    (is (thrown? AssertionError (validate schema {:blah "foobar"
+                                                  :data [{"a" 1}]})))))
+
+(deftest any-as-key
+  (let [schema {:Any Long}]
+    (is (= {:1 2} (validate schema {:1 2})))))
+
+(deftest any-as-tuple
+  (let [schema `(:Any :Any)]
+    (is (= [1 "2"] (validate schema [1 "2"])))
+    (is (thrown? AssertionError (validate schema [1 2 3])))))
+
+(deftest any-as-vector
+  (let [schema [:Any]]
+    (is (= [1 2 3] (validate schema [1 2 3])))
+    (is (= [1 "2" 3.0] (validate schema [1 "2" 3.0])))))
+
+(deftest any-as-value
+  (let [schema {keyword? :Any}]
+    (is (= {:a :apple} (validate schema {:a :apple})))
+    (is (= {:b 123} (validate schema {:b 123})))))
+
+(deftest any-as-value-exact-match
+  (let [schema {keyword? :Any}]
+    (is (= {} (validate schema {1 :apple})))
+    (is (thrown? AssertionError (validate schema {1 :apple} :exact-match true)))))
+
+(deftest required-value-to-type
+  (let [schema {:a "apple"
+                :b String}]
+    (is (= {:a "apple" :b "banana"}
+           (validate schema {:a "apple" :b "banana"})))
+    (is (thrown? AssertionError (validate schema {:a "apple"})))
+    (is (thrown? AssertionError (validate schema {:a "apple" :b 1})))))
