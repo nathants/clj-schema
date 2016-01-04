@@ -176,6 +176,7 @@
 
 (defmacro validate
   [schema value & {:keys [exact-match]}]
+  ;; TODO note about tuples. use "`", but only once. ie dont nest "`" or bad results.
   ;; TODO core.async chan, manifold defered
   (if *disable-schema*
     value
