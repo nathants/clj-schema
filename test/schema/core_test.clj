@@ -49,6 +49,13 @@
     1)
   (is (= 1 (f))))
 
+(deftest test-defnv-unpacking
+  (defnv f
+    [`(String Long) -> String]
+    [[a b]]
+    (str a b))
+  (is (= "a0" (f ["a" 0]))))
+
 (deftest test-defnv-lazy-seq
   (defnv f
     [String -> [Number]]

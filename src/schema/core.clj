@@ -1,10 +1,22 @@
 (ns schema.core
-  ;; TODO drop pprint. it uses STM and that is very bad for perf.
-  ;; https://github.com/brandonbloom/fipp
   (:require [clojure.pprint :refer [pprint]]
             [clojure.string :as s])
   (:import clojure.lang.LazySeq
            clojure.lang.Cons))
+
+;; TODO
+;;
+;; drop pprint. it uses STM and that is very bad for perf.
+;; https://github.com/brandonbloom/fipp
+
+
+;; TODO
+;;
+;; schema. having optional values could cause failures when schema is
+;; disabled. ie got nil instead of optional val. change -validate to
+;; validate! and make it fill optionals by default, but not the
+;; validate macro, which can be disabled. same for defnv!.
+
 
 (def *disable-update-exception* (System/getenv "DISABLE_UPDATE_EXCEPTION"))
 (def *disable-schema* (doto (System/getenv "DISABLE_SCHEMA") (->> boolean (println "schemas disabled:"))))
@@ -180,15 +192,17 @@
   ;; TODO core.async chan, manifold defered
   (if *disable-schema*
     value
-    `(let [value# ~value
-           schema# ~schema
-           exact-match# ~exact-match]
-       (if (and (vector? schema#)
-                (= (count schema#) 1)
-                (instance? LazySeq value#)
-                (not (realized? value#)))
-         (map #(-validate (first schema#) % :exact-match exact-match#) value#)
-         (-validate schema# value# :exact-match exact-match#)))))
+    `(if *disable-schema*
+       ~value
+       (let [value# ~value
+             schema# ~schema
+             exact-match# ~exact-match]
+         (if (and (vector? schema#)
+                  (= (count schema#) 1)
+                  (instance? LazySeq value#)
+                  (not (realized? value#)))
+           (map #(-validate (first schema#) % :exact-match exact-match#) value#)
+           (-validate schema# value# :exact-match exact-match#))))))
 
 (defmacro defnv
   "define validated function.
