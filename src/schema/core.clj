@@ -4,6 +4,8 @@
   (:import clojure.lang.LazySeq
            clojure.lang.Cons))
 
+;; TODO type hints break defnv
+
 ;; TODO
 ;;
 ;; drop pprint. it uses STM and that is very bad for perf.
