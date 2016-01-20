@@ -4,6 +4,8 @@
   (:import clojure.lang.LazySeq
            clojure.lang.Cons))
 
+;; TODO add fnv and fnv! to complement defnv and defnv!
+
 ;; TODO type hints break defnv
 
 ;; TODO
