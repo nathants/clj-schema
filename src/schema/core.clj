@@ -22,8 +22,8 @@
 ;; validate macro, which can be disabled. same for defnv!.
 
 
-(def *disable-update-exception* (System/getenv "DISABLE_UPDATE_EXCEPTION"))
-(def *disable-schema* (doto (System/getenv "DISABLE_SCHEMA") (->> boolean (println "schemas disabled:"))))
+(def *disable-update-exception* false)
+(def *disable-schema* true)
 
 ;; TODO write backwards compatability checker for two schema values.
 (defn compatible [old new] false)
