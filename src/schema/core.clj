@@ -23,7 +23,8 @@
 
 
 (def *disable-update-exception* false)
-(def *disable-schema* true)
+(def *disable-schema* (doto (not (System/getenv "ENABLE_SCHEMA"))
+                        (->> (println "disable schema:"))))
 
 ;; TODO write backwards compatability checker for two schema values.
 (defn compatible [old new] false)
