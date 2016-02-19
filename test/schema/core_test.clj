@@ -140,6 +140,12 @@
     (is (= nil (validate schema nil)))
     (is (thrown? AssertionError (validate schema true)))))
 
+(deftest union-as-key
+  (let [schema {[:U "a" "b"] Long}]
+    (is (= {"a" 1} (validate schema {"a" 1})))
+    (is (= {"b" 2} (validate schema {"b" 2})))
+    (is (thrown? AssertionError (validate schema {"c" 3})))))
+
 (deftest union-empty
   (let [schema [:U]]
     (is (thrown? AssertionError (validate schema true)))))

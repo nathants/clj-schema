@@ -114,16 +114,29 @@
                     (let [value-match (contains? schema k)
                           type-match (some #{(type k)} (filterv class? (keys schema))) ;; TODO sort this filterv for consistent results?
                           predicate-match (some #(if (% k) %) (filterv fn? (keys schema))) ;; TODO sort this filterv for consistent results?
-                          any-match (contains? schema :Any)]
+                          any-match (contains? schema :Any)
+                          schema-command-matches (map #(try
+                                                         (-validate % k)
+                                                         %
+                                                         (catch AssertionError ex
+                                                           [::fail ex]))
+                                                      (filterv #(and (sequential? %)
+                                                                     (-schema-commands (first %)))
+                                                               (keys schema)))
+                          schema-command-fails (map second (filter #(-> % first (= ::fail)) schema-command-matches))
+                          schema-command-match (first (remove #(-> % first (= ::fail)) schema-command-matches))]
                       (cond
-                        (or value-match type-match predicate-match any-match)
+                        (or value-match type-match predicate-match schema-command-match any-match)
                         (let [-schema (get schema (cond value-match k
                                                         type-match (type k)
                                                         predicate-match predicate-match
+                                                        schema-command-match schema-command-match
                                                         any-match :Any))]
                           (vswap! -value assoc k (-validate -schema v)))
+                        (seq schema-command-fails)
+                        (throw (first schema-command-fails))
                         :else
-                        (assert (not exact-match) (error-message k "does not match schema keys"))))))
+                        (assert (not exact-match) (error-message k "does not match schema keys")))) ))
                 ;; check for items in schema missing in value, filling in optional value
                 (doseq [[k v] schema]
                   (with-update-exception AssertionError (str "checking key: " k)
@@ -133,7 +146,8 @@
                              (= :O (first v)))
                         (do (assert (= 3 (count v)) (error-message ":O schema should be [:O, schema, default-value]"))
                             (vswap! -value assoc k (apply -validate (rest v))))
-                        (not (or (= :Any k)
+                        (not (or (and (sequential? k) (-schema-commands (first k)))
+                                 (= :Any k)
                                  (class? k)
                                  (fn? k)))
                         (throw (AssertionError. (error-message "missing required key:" k)))))))
