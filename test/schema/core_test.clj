@@ -240,3 +240,133 @@
            (validate schema {:a "apple" :b "banana"})))
     (is (thrown? AssertionError (validate schema {:a "apple"})))
     (is (thrown? AssertionError (validate schema {:a "apple" :b 1})))))
+
+(deftest required-value-to-value
+  (let [schema {:a "apple"
+                :b "banana"}]
+    (is (= {:a "apple" :b "banana"} (validate schema {:a "apple" :b "banana"})))
+    (is (thrown? AssertionError (validate schema {:a "apple"})))))
+
+(deftest type-to-value
+  (let [schema {String "apple"}]
+    (is (= {"a" "apple"} (validate schema {"a" "apple"})))
+    (is (thrown? AssertionError (validate schema {"a" "notapple"})))))
+
+(deftest nested-optional
+  (let [schema {:a {:b [:O String "default"]}}]
+    (is (= {:a {:b "default"}} (validate schema {:a {}})))
+    (is (= {:a {:b "value"}} (validate schema {:a {:b "value"}})))
+    (is (thrown? AssertionError (validate schema {:a {:b 123}}))))
+  (let [schema [{:name [:O String "bob"]}]]
+    (is (= [{:name "bob"}] (validate schema [{}])))
+    (is (= [{:name "joe"}] (validate schema [{:name "joe"}])))))
+
+(deftest optional
+  (let [schema {:a "apple"
+                :b [:O String "banana"]}]
+    (is (= {:a "apple" :b "banana"} (validate schema {:a "apple"})))
+    (is (= {:a "apple" :b "bar"} (validate schema {:a "apple" :b "bar"})))
+    (is (thrown? AssertionError (validate schema {:a "apple" :b 1.0})))))
+
+(deftest value-schema
+  (let [schema 1]
+    (is (= 1 (validate schema 1)))
+    (is (thrown? AssertionError (validate schema 2)))))
+
+(deftest single-type-schema
+  (let [schema Long]
+    (is (= 1 (validate schema 1)))
+    (is (thrown? AssertionError (validate schema "2")))))
+
+(deftest iterable-length-n
+  (let [schema [Long]]
+    (is (= [1 2] (validate schema [1 2])))
+    (is (thrown? AssertionError (validate schema [1 "2"])))))
+
+(deftest iterable-fixed-length
+  (let [schema `(Double Long)]
+    (is (= [1.0 1] (validate schema [1.0 1])))
+    (is (thrown? AssertionError (validate schema [1.0 "1"])))))
+
+(deftest nested-type-to-type
+  (let [schema {String {String Long}}]
+    (is (= {"1" {"1" 1}} (validate schema {"1" {"1" 1}})))
+    (is (thrown? AssertionError (validate schema {"1" nil})))
+    (is (thrown? AssertionError (validate schema {"1" {"1" nil}})))))
+
+(deftest val-to-val-and-type-to-type
+  (let [schema {:a "apple"
+                String Double}]
+    (is (= {:a "apple" "1" 1.1} (validate schema {:a "apple" "1" 1.1})))
+    (is (= {:a "apple"} (validate schema {:a "apple"})))
+    (is (thrown? AssertionError (validate schema {:a "applebees"})))))
+
+(deftest type-to-type
+  (let [schema {String Long}]
+    (is (= {"1" 1} (validate schema {"1" 1})))
+    (is (= {} (validate schema {})))))
+
+(deftest value-to-type
+  (let [schema {"foo" Long}]
+    (is (= {"foo" 1} (validate schema {"foo" 1})))
+    (is (thrown? AssertionError (validate schema {"foo" "bar"})))))
+
+(deftest value-to-value
+  (let [schema {"foo" "bar"}]
+    (is (= {"foo" "bar"} (validate schema {"foo" "bar"})))
+    (is (thrown? AssertionError (validate schema {"foo" 1})))))
+
+(deftest predicate-schema
+  (let [schema {"foo" #(and (integer? %) (pos? %))}]
+    (is (= {"foo" 1} (validate schema {"foo" 1})))
+    (is (thrown? AssertionError (validate schema {"foo" 0})))))
+
+(deftest nested-predicate-schema
+  (let [schema {"foo" {"bar" #(and (integer? %) (pos? %))}}]
+    (is (= {"foo" {"bar" 1}} (validate schema {"foo" {"bar" 1}})))
+    (is (thrown? AssertionError (validate schema {"foo" {"bar" 0}})))))
+
+(deftest iterable-length-n-must-be-length-one
+  (let [schema [Long Long]]
+    (is (thrown? AssertionError (validate schema [1])))))
+
+(deftest nested-iterables
+  (let [schema [[String]]]
+    (is (= [["1"] ["2"]] (validate schema [["1"] ["2"]])))
+    (is (thrown? AssertionError (validate schema [["1"] [2]])))))
+
+(deftest many-keys
+  (let [schema {String Long}]
+    (is (= {"1" 2 "3" 4} (validate schema {"1" 2 "3" 4})))
+    (is (thrown? AssertionError (validate schema {"1" 2 "3" 4.0})))))
+
+(deftest value-matches-are-higher-precidence-than-type-matches
+  (let [schema {String Long
+                "foo" "bar"}]
+    (is (= {"1" 2 "foo" "bar"} (validate schema {"1" 2 "foo" "bar"})))
+    (is (thrown? AssertionError (validate schema {"1" 2 "foo" 2})))))
+
+(deftest complex-types
+  (let [schema {:name `(String String)
+                :age #(and (integer? %) (pos? %))
+                :friends [`(String String)]
+                :events [{:what String
+                          :when Double
+                          :where `(Long Long)}]}
+        data {:name ["jane", "doe"]
+              :age 99
+              :friends [["dave" "g"]
+                        ["tom" "p"]]
+              :events [{:what "party"
+                        :when 123.11
+                        :where [65 73]}
+                       {:what "shopping"
+                        :when 145.22
+                        :where [77 44]}]}]
+    (is (= data (validate schema data)))
+    (is (thrown? AssertionError (validate schema (merge data {:name 123}))))
+    (is (thrown? AssertionError (validate schema (merge data {:events [nil]}))))
+    (is (thrown? AssertionError (validate schema (merge data {:events (concat (:events data) [nil])}))))
+    (is (thrown? AssertionError (validate schema (merge data {:events [{:what "shopping"
+                                                                        :when 123.11
+                                                                        :where [0 0 0]}]}))))))
