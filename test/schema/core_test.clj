@@ -144,7 +144,8 @@
   (let [schema {[:U "a" "b"] Long}]
     (is (= {"a" 1} (validate schema {"a" 1})))
     (is (= {"b" 2} (validate schema {"b" 2})))
-    (is (thrown? AssertionError (validate schema {"c" 3})))))
+    (is (= {} (validate schema {"c" 3})))
+    (is (thrown? AssertionError (validate schema {"c" 3} :exact-match true)))))
 
 (deftest union-empty
   (let [schema [:U]]
@@ -230,6 +231,7 @@
 
 (deftest any-as-value-exact-match
   (let [schema {keyword? :Any}]
+    (is (= {:fruit :apple} (validate schema {:fruit :apple})))
     (is (= {} (validate schema {1 :apple})))
     (is (thrown? AssertionError (validate schema {1 :apple} :exact-match true)))))
 
