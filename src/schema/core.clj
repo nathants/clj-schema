@@ -38,13 +38,20 @@
 ;; TODO probably more efficient to pass down the context, rather than
 ;; storing it in a stack of try/catches.
 (defmacro with-update-exception
-  [cls msg body]
-  (if *disable-update-exception*
-    body
-    `(try
-       ~body
-       (catch ~cls ex#
-         (throw (new ~cls (str "\n" ~msg "\n" (.getMessage ex#) "\n")))))))
+  [cls msg & forms]
+  (let [after (= [:after true] (take 2 forms))
+        forms (if after (drop 2 forms) forms)
+        ex (gensym)
+        string (if after
+                 `(str "\n" (.getMessage ~ex) "\n" ~msg "\n")
+                 `(str "\n" ~msg "\n" (.getMessage ~ex)))]
+    (assert (= 1 (count forms)))
+    (if *disable-update-exception*
+      (first forms)
+      `(try
+         ~@forms
+         (catch ~cls ~ex
+           (throw (new ~cls ~string)))))))
 
 (defn indent
   [n x]
@@ -70,7 +77,7 @@
 
 (defn error-message
   [& args]
-  (str "\n" (s/join " " (map str args)) "\n"))
+  (str "\n" (s/join " " (map str args))))
 
 (def -schema-commands
   #{:U ;; union
@@ -255,8 +262,8 @@
          [& args#]
          (assert (= (count args#) (count '~args)) (str "unknown arity: " (count args#) " for fn: " ~name))
          (let [~args (for [[i# a# s#] (map vector (range) (list ~@arg-schema) (or args# ()))]
-                       (with-update-exception AssertionError (str "\nschema check failed for args to fn: " ~name ", for pos arg: " i#)
+                       (with-update-exception AssertionError (str "\nschema check failed for args to fn: " ~name ", for pos arg: " i#) :after true
                          (validate a# s#)))
                res# (do ~@body)]
-           (with-update-exception AssertionError (str "\nschema check failed for return value from fn: " ~name)
+           (with-update-exception AssertionError (str "\nschema check failed for return value from fn: " ~name) :after true
              (validate ~return-schema res#)))))))
