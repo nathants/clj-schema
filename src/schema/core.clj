@@ -113,6 +113,10 @@
     (let [[schema value] (map -resolve-symbols [schema value])]
       (cond
         ;; TODO suppport validating a manifold deferred
+        (var? schema)
+        (-validate (var-get schema) value)
+        (var? value)
+        (-validate schema (var-get value))
         (set? schema)
         (do (assert (set? value) (error-message value "is not a set"))
             (assert (= (count schema) 1) (error-message "set schemas represent homogenous sets and must (= 1 (count schema))"))
@@ -202,8 +206,6 @@
         (fn? schema)
         (do (assert (schema value) (error-message "failed predicate schema"))
             value)
-        (var? schema)
-        (-validate (var-get schema) value)
         :else
         (do (assert (= schema value) (error-message value "does not equal" schema))
             value)))))

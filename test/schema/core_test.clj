@@ -15,6 +15,10 @@
     (is (thrown? AssertionError (validate schema [1 2])))
     (is (thrown? AssertionError (validate schema ["1" 2])))))
 
+(deftest value-vars
+  (def v 123)
+  (is (= 123 (validate Long #'v))))
+
 (deftest recursive-types
   (def schema {String [:U Long String #'schema]})
   (is (= {"a" {"number" 1}} (validate schema {"a" {"number" 1}})))
