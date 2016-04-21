@@ -267,3 +267,12 @@
                res# (do ~@body)]
            (with-update-exception AssertionError (str "\nschema check failed for return value from fn: " ~name) :after true
              (validate ~return-schema res#)))))))
+
+(defmacro fnv
+  "define validated anonymous function.
+  usage: (fnv
+           [Long Long -> Long]
+           [x y]
+           (+ x y))"
+  [sig args & forms]
+  (list* 'defnv '_ sig args forms))

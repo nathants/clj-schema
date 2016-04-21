@@ -21,6 +21,14 @@
   (is (thrown? AssertionError (validate schema {"a" {"number" :not-valid}})))
   (is (thrown? AssertionError (validate schema {"a" :not-valid}))))
 
+(deftest test-fn
+  (let [f (fnv
+            [Long -> Long]
+            [x]
+            x)]
+    (is (= 0 (f 0)))
+    (is (thrown? AssertionError (f :not-long)))))
+
 (deftest test-defnv
   (defnv f
     [String -> Long]
