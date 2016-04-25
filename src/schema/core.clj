@@ -278,7 +278,8 @@
            [x y]
            (+ x y))"
   [sig args & forms]
-  `(defnv ~(gensym)
-     ~sig
-     ~args
-     ~@forms))
+  `(var-get
+    (defnv ~(gensym)
+      ~sig
+      ~args
+      ~@forms)))
