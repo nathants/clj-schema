@@ -59,7 +59,8 @@
     [-> Number]
     []
     1)
-  (is (= 1 (f))))
+  (is (= 1 (f)))
+  (is (thrown? AssertionError (f 1))))
 
 (deftest test-defnv-unpacking
   (defnv f

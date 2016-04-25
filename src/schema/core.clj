@@ -237,6 +237,7 @@
   ;; TODO support generics? [[:T] -> [:T]]
   ;; TODO completely ignore & {:keys [blah]}
   ;; TODO add support for arity overloading
+  ;; TODO multiple arities
   ;; TODO variadic sig support
   ;; (deftest test-defnv-variadic
   ;;   (defnv f
@@ -277,4 +278,7 @@
            [x y]
            (+ x y))"
   [sig args & forms]
-  (list* 'defnv '_ sig args forms))
+  `(defnv ~(gensym)
+     ~sig
+     ~args
+     ~@forms))
