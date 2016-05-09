@@ -146,18 +146,20 @@
                       (assert (not exact-match) (error-message k "does not match schema keys")))))
                 ;; check for items in schema missing in value, filling in optional value
                 (doseq [[k v] schema]
-                  (with-update-exception AssertionError (str "checking key: " k)
-                    (when (not (contains? @-value k))
-                      (cond
-                        (and (sequential? v)
-                             (= :O (first v)))
-                        (do (assert (= 3 (count v)) (error-message ":O schema should be [:O, schema, default-value]"))
-                            (vswap! -value assoc k (apply -validate (rest v))))
-                        (not (or (and (sequential? k) (-schema-commands (first k)))
-                                 (= :Any k)
-                                 (class? k)
-                                 (fn? k)))
-                        (throw (AssertionError. (error-message "missing required key:" k)))))))
+                  (let [k (if (var? k) (var-get k) k)
+                        v (if (var? v) (var-get v) v)]
+                    (with-update-exception AssertionError (str "checking key: " k)
+                      (when (not (contains? @-value k))
+                        (cond
+                          (and (sequential? v)
+                               (= :O (first v)))
+                          (do (assert (= 3 (count v)) (error-message ":O schema should be [:O, schema, default-value]"))
+                              (vswap! -value assoc k (apply -validate (rest v))))
+                          (not (or (and (sequential? k) (-schema-commands (first k)))
+                                   (= :Any k)
+                                   (class? k)
+                                   (fn? k)))
+                          (throw (AssertionError. (error-message "missing required key:" k))))))))
                 @-value)))
         (= schema :Any) value
         (sequential? schema)

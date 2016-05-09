@@ -5,6 +5,13 @@
 
 ;; clojure specific tests
 
+(deftest resolve-var-keys-in-defnv-maps
+  (defnv f
+    [`(String {keyword? String}) -> Integer]
+    [x]
+    (count x))
+  (is (= 2 (f ["foo" {:foo "bar"}]))))
+
 (deftest symbols-as-map-keys-and-vals-are-resolved
   (= [{"1" 2}] (validate `({String Long}) [{"1" 2}])))
 
