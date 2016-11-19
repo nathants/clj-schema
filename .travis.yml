@@ -1,1 +1,4 @@
 language: clojure
+script: ENABLE_SCHEMA=y lein test
+jdk:
+  - oraclejdk8
