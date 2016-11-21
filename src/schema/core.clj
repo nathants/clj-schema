@@ -109,7 +109,6 @@
   [name]
   `(defn ~name
      [schema# value# & {:keys [~'exact-match]}]
-     (println '~name)
      (with-update-exception AssertionError (helpful-message schema# value#)
        ;; TODO type based dispatch better than long conditionals? possible?
        ;; TODO flatten this into un-nested conditionals? perf hit?
