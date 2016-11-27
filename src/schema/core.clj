@@ -20,21 +20,35 @@
 ;; schema. having optional values could cause failures when schema is
 ;; disabled. ie got nil instead of optional val. change -validate to
 ;; validate! and make it fill optionals by default, but not the
-;; validate macro, which can be disabled. same for defnv!.
+;; validate macro, which can be disabled. same for defnv!. perhaps add
+;; logged warnings to defnv and validate calls that use optional
+;; values.
 
 
-(def *disable-update-exception*)
-(def *disable-schema* (doto (not (System/getenv "ENABLE_SCHEMA"))
-                        (->> (println "disable schema:"))))
+(def *disable-update-exception*
+  "there is zero cost in the happy path, ie no exceptions
+  thrown. however, this is significant cost in the sad path. this cost
+  is paid to get very helpful messages about what parts of the schema
+  mismatche the value. likely you will want these messages for dev,
+  but never for prod."
+  (doto (boolean (System/getenv "DISABLE_HELPFUL_SCHEMA_ERRORS"))
+    (->> (println "disable helpful schema errors:"))))
 
-;; TODO write backwards compatability checker for two schema values.
-(defn compatible [old new]
+(def *disable-schema*
+  "schema validation is costly. by default, schemas are disabled. you
+  likely want them for dev, but not for prod. however, they may be
+  useful in prod, if validation is always required."
+  (doto (not (System/getenv "ENABLE_SCHEMA"))
+    (->> (println "disable schema:"))))
+
+(defn compatible
   "you can only add new keys to schemas, and their values must be
   optional. you can never change existing keys. schema validation
   ignores unknown keys, so as long as this compatability is
   maintained, old code can use new data (ignores keys unknown in the
   past), and new code can use old data (all new keys are optional and
-  have default values)."
+  have default values to fill in the old data)."
+  [old new]
   (assert (map? old))
   (assert (map? new))
   (let [ks-old (set (keys old))
@@ -54,8 +68,8 @@
         (assert (= :O (first v)) v)))))
 
 
-;; TODO have functions that translate to and from json mode. sets and
-;; lists become arrays, types are converted to a namespaced keyword,
+;; TODO have functions that translate to and from json. sets and
+;; lists become arrays, types/fns are converted to a namespaced keyword,
 ;; etc.
 (defn freeze [x] x)
 (defn thaw [x] x)
@@ -127,148 +141,129 @@
     (map (comp sort val))
     (apply concat)))
 
-(def -validate)
-(def -validate-with-helpful-messages)
-
-(defmacro -define-validate-function
-  [name]
-  `(defn ~name
-     [schema# value# & {:keys [~'exact-match]}]
-     (with-update-exception AssertionError (helpful-message schema# value#)
-       ;; TODO type based dispatch better than long conditionals? possible?
-       ;; TODO flatten this into un-nested conditionals? perf hit?
-       ;; TODO rewrite py-schema in cljc. use macros. do compile time
-       ;; transformations so that type lookup is used instead of long chains
-       ;; of conditionals. perf boost?
-       (let [[schema# value#] (map -resolve-symbols [schema# value#])]
-         (cond
-           ;; TODO suppport validating a manifold deferred
-           (var? schema#)
-           (~name (var-get schema#) value#)
-           (var? value#)
-           (~name schema# (var-get value#))
-           (set? schema#)
-           (do (assert (set? value#) (error-message value# "is not a set"))
-               (assert (= (count schema#) 1) (error-message "set schemas represent homogenous sets and must (= 1 (count schema))"))
-               (set (map #(~name (first schema#) %) value#)))
-           (map? schema#)
-           (do (assert (map? value#) (error-message value# "is not a map"))
-               ;; if schema# keys are all types, and _value is empty, return. ie, type keys are optional, so {} is a valid {int: int}
-               (if (and (= {} value#)
-                        (= #{Class} (set (map type schema#))))
-                 {}
-                 ;; TODO is there an fp way to do this that is *more* elegant than current implementation?
-                 (let [-value# (volatile! {})]
-                   ;; check for items in value# that dont satisfy schema#, dropping unknown keys unless exact_match=true
-                   (doseq [[k# v#] value#]
-                     (with-update-exception AssertionError (str "checking key: " k#)
-                       (if-let [schema-k# (->> (keys schema#)
-                                            -sort-any ;; map key should be in a stable ordering
-                                            (sort-by #(not= % k#)) ;; value# matched keys are higher precedence
-                                            (map #(try
-                                                    (~name % k#)
-                                                    %
-                                                    (catch AssertionError _#
-                                                      ::fail)))
-                                            (remove #{::fail})
-                                            first)]
-                         (vswap! -value# assoc k# (~name (get schema# schema-k#) v#))
-                         (assert (not ~'exact-match) (error-message k# "does not match schema keys")))))
-                   ;; check for items in schema# missing in value#, filling in optional value#
-                   (doseq [[k# v#] schema#]
-                     (let [k# (if (var? k#) (var-get k#) k#)
-                           v# (if (var? v#) (var-get v#) v#)]
-                       (with-update-exception AssertionError (str "checking key: " k#)
-                         (when (not (contains? @-value# k#))
-                           (cond
-                             (and (sequential? v#)
-                                  (= :O (first v#)))
-                             (do (assert (= 3 (count v#)) (error-message ":O schema should be [:O, schema, default-value]"))
-                                 (vswap! -value# assoc k# (apply ~name (rest v#))))
-                             (not (or (and (sequential? k#) (-schema-commands (first k#)))
-                                      (= :Any k#)
-                                      (class? k#)
-                                      (fn? k#)))
-                             (throw (AssertionError. (error-message "missing required key:" k#))))))))
-                   @-value#)))
-           (= schema# :Any) value#
-           (sequential? schema#)
-           (do (assert (or (sequential? value#) (get -schema-commands (first schema#))) (error-message value# "is not sequential"))
-               (cond
-                 (get -schema-commands (first schema#))
-                 (condp = (first schema#)
-                   :O
-                   (do (assert (= 3 (count schema#)) (error-message ":O schema should be [:O, schema, default-value]"))
-                       (~name (second schema#) value#))
-                   :U ;; TODO is there an fp way to do this that is *more* elegant than current implementation?
-                   (let [_# (assert (> (count schema#) 1) (error-message ":U types cannot be empty"))
-                         -value# (volatile! value#)
-                         tracebacks# (volatile! [])]
-                     (doseq [-schema# (rest schema#)]
-                       (try
-                         (vswap! -value# #(~name -schema# %))
-                         (catch AssertionError ex#
-                           (vswap! tracebacks# conj (.getMessage ex#)))))
-                     (if (= (count (rest schema#)) (count @tracebacks#))
-                       (throw (AssertionError. (error-message "did not match *any* of :U\n" (apply str (interpose "\n" @tracebacks#)))))
-                       @-value#))
-                   :I ;; TODO is there an fp way to do this that is *more* elegant than current implementation?
-                   (let [_# (assert (> (count schema#) 1) (error-message ":I types cannot be empty"))
-                         -value# (volatile! value#)
-                         tracebacks# (volatile! [])]
-                     (doseq [-schema# (rest schema#)]
-                       (try
-                         (vswap! -value# #(~name -schema# %))
-                         (catch AssertionError ex#
-                           (vswap! tracebacks# conj (.getMessage ex#)))))
-                     (if (seq @tracebacks#)
-                       (throw (AssertionError. (error-message "did not match *all* of :I\n" (apply str (interpose "\n" @tracebacks#)))))
-                       @-value#))
-                   :fn
-                   (assert false "TODO implement me. how does this differ from python?"))
-                 (vector? schema#)
-                 (do (assert (= (count schema#) 1) (error-message "vector schemas represent homogenous seqs and must (= 1 (count schema))"))
-                     (mapv #(~name (first schema#) %) value#))
-                 :else
-                 (do (assert (= (count schema#) (count value#)) (error-message "value mismatched length of schema," (count value#) "!=" (count schema#)))
-                     (mapv ~name schema# value#))))
-           (class? schema#)
-           (do (assert (instance? schema# value#) (error-message value# "is not a" (pretty-class schema#)))
-               value#)
-           (fn? schema#)
-           (do (assert (schema# value#) (error-message "failed predicate schema"))
-               value#)
-           :else
-           (do (assert (= schema# value#) (error-message value# "does not equal" schema#))
-               value#))))))
-
-(def *disable-update-exception* true)
-(-define-validate-function -validate)
-(def *disable-update-exception* false)
-(-define-validate-function -validate-with-helpful-messages)
+(defn -validate
+  [schema value & {:keys [exact-match]}]
+  (with-update-exception AssertionError (helpful-message schema value)
+    ;; TODO type based dispatch better than long conditionals? possible? perf hit?
+    ;; TODO flatten this into un-nested conditionals? perf hit?
+    (let [[schema value] (map -resolve-symbols [schema value])]
+      (cond
+        ;; TODO suppport validating a manifold deferred
+        (var? schema)
+        (-validate (var-get schema) value)
+        (var? value)
+        (-validate schema (var-get value))
+        (set? schema)
+        (do (assert (set? value) (error-message value "is not a set"))
+            (assert (= (count schema) 1) (error-message "set schemas represent homogenous sets and must (= 1 (count schema))"))
+            (set (map #(-validate (first schema) %) value)))
+        (map? schema)
+        (do (assert (map? value) (error-message value "is not a map"))
+            ;; if schema keys are all types, and _value is empty, return. ie, type keys are optional, so {} is a valid {int: int}
+            (if (and (= {} value)
+                     (= #{Class} (set (map type schema))))
+              {}
+              ;; TODO is there an fp way to do this that is *more* elegant than current implementation?
+              (let [-value (volatile! {})]
+                ;; check for items in value that dont satisfy schema, dropping unknown keys unless exact_match=true
+                (doseq [[k v] value]
+                  (with-update-exception AssertionError (str "checking key: " k)
+                    (if-let [schema-k (->> (keys schema)
+                                        -sort-any ;; map key should be in a stable ordering
+                                        (sort-by #(not= % k)) ;; value matched keys are higher precedence
+                                        (map #(try
+                                                (-validate % k)
+                                                %
+                                                (catch AssertionError _
+                                                  ::fail)))
+                                        (remove #{::fail})
+                                        first)]
+                      (vswap! -value assoc k (-validate (get schema schema-k) v))
+                      (assert (not exact-match) (error-message k "does not match schema keys")))))
+                ;; check for items in schema missing in value, filling in optional value
+                (doseq [[k v] schema]
+                  (let [k (if (var? k) (var-get k) k)
+                        v (if (var? v) (var-get v) v)]
+                    (with-update-exception AssertionError (str "checking key: " k)
+                      (when (not (contains? @-value k))
+                        (cond
+                          (and (sequential? v)
+                               (= :O (first v)))
+                          (do (assert (= 3 (count v)) (error-message ":O schema should be [:O, schema, default-value]"))
+                              (vswap! -value assoc k (apply -validate (rest v))))
+                          (not (or (and (sequential? k) (-schema-commands (first k)))
+                                   (= :Any k)
+                                   (class? k)
+                                   (fn? k)))
+                          (throw (AssertionError. (error-message "missing required key:" k))))))))
+                @-value)))
+        (= schema :Any) value
+        (sequential? schema)
+        (do (assert (or (sequential? value) (get -schema-commands (first schema))) (error-message value "is not sequential"))
+            (cond
+              (get -schema-commands (first schema))
+              (condp = (first schema)
+                :O
+                (do (assert (= 3 (count schema)) (error-message ":O schema should be [:O, schema, default-value]"))
+                    (-validate (second schema) value))
+                :U ;; TODO is there an fp way to do this that is *more* elegant than current implementation?
+                (let [_ (assert (> (count schema) 1) (error-message ":U types cannot be empty"))
+                      -value (volatile! value)
+                      tracebacks (volatile! [])]
+                  (doseq [-schema (rest schema)]
+                    (try
+                      (vswap! -value #(-validate -schema %))
+                      (catch AssertionError ex
+                        (vswap! tracebacks conj (.getMessage ex)))))
+                  (if (= (count (rest schema)) (count @tracebacks))
+                    (throw (AssertionError. (error-message "did not match *any* of :U\n" (apply str (interpose "\n" @tracebacks)))))
+                    @-value))
+                :I ;; TODO is there an fp way to do this that is *more* elegant than current implementation?
+                (let [_ (assert (> (count schema) 1) (error-message ":I types cannot be empty"))
+                      -value (volatile! value)
+                      tracebacks (volatile! [])]
+                  (doseq [-schema (rest schema)]
+                    (try
+                      (vswap! -value #(-validate -schema %))
+                      (catch AssertionError ex
+                        (vswap! tracebacks conj (.getMessage ex)))))
+                  (if (seq @tracebacks)
+                    (throw (AssertionError. (error-message "did not match *all* of :I\n" (apply str (interpose "\n" @tracebacks)))))
+                    @-value))
+                :fn
+                (assert false "TODO implement me. how does this differ from python?"))
+              (vector? schema)
+              (do (assert (= (count schema) 1) (error-message "vector schemas represent homogenous seqs and must (= 1 (count schema))"))
+                  (mapv #(-validate (first schema) %) value))
+              :else
+              (do (assert (= (count schema) (count value)) (error-message "value mismatched length of schema," (count value) "!=" (count schema)))
+                  (mapv -validate schema value))))
+        (class? schema)
+        (do (assert (instance? schema value) (error-message value "is not a" (pretty-class schema)))
+            value)
+        (fn? schema)
+        (do (assert (schema value) (error-message "failed predicate schema"))
+            value)
+        :else
+        (do (assert (= schema value) (error-message value "does not equal" schema))
+            value)))))
 
 (defmacro validate
   [schema value & {:keys [exact-match]}]
   ;; TODO note about tuples. use "`", but only once. ie dont nest "`" or bad results.
-  ;; TODO core.async chan, manifold defered
   (if *disable-schema*
     value
     `(if *disable-schema*
        ~value
        (let [value# ~value
              schema# ~schema
-             exact-match# ~exact-match
-             f# (fn [& args#]
-                  (try
-                    (apply -validate args#)
-                    (catch AssertionError _#
-                      (apply -validate-with-helpful-messages args#))))]
+             exact-match# ~exact-match]
          (if (and (vector? schema#)
                   (= (count schema#) 1)
                   (instance? LazySeq value#)
                   (not (realized? value#)))
-           (map #(f# (first schema#) % :exact-match exact-match#) value#)
-           (f# schema# value# :exact-match exact-match#))))))
+           (map #(-validate (first schema#) % :exact-match exact-match#) value#)
+           (-validate schema# value# :exact-match exact-match#))))))
 
 (defmacro defnv
   "define validated function.
@@ -281,12 +276,13 @@
   ;; TODO add support for arity overloading
   ;; TODO multiple arities
   ;; TODO variadic sig support
+  ;; TODO & {:keys [...]} support
   ;; (deftest test-defnv-variadic
   ;;   (defnv f
   ;;     [& String -> String]
   ;;     [& xs]
   ;;     (apply str xs))
-  ;;   (is (= "12" (f "1" "2" "3"))))
+  ;;   (is (= "123" (f "1" "2" "3"))))
   [& forms]
   (let [[name doc sig args & body]
         (if (string? (second forms))
