@@ -392,3 +392,37 @@
     (is (thrown? AssertionError (validate schema (merge data {:events [{:what "shopping"
                                                                         :when 123.11
                                                                         :where [0 0 0]}]}))))))
+(deftest compatible-schemas
+  (testing "identity"
+    (let [old {:name String}]
+      (is (nil? (compatible old old)))))
+  (testing "new schemas must be a superset of old schemas"
+    (let [old {:name String}
+          new {:value String}]
+      (is (thrown? AssertionError (compatible old new)))))
+  (testing "you cant change existing schemas"
+    (let [old {:name String :age integer?}
+          new {:name String :age number?}]
+      (is (thrown? AssertionError (compatible old new)))))
+  (testing "you cant add required keys to existing schemas"
+    (let [old {:name String}
+          new {:name String :age number?}]
+      (is (thrown? AssertionError (compatible old new)))))
+  (testing "you can add optional keys to existing schemas"
+    (let [old {:name String}
+          new {:name String :age [:O number? 0]}]
+      (is (nil? (compatible old new)))))
+  (testing "you cant change existing schemas, nested"
+    (let [old {:name String :data {:age integer?}}
+          new {:name String :data {:age number?}}]
+      (is (thrown? AssertionError (compatible old new)))))
+  (testing "you cant add required keys to existing schemas, nested"
+    (let [old {:name String :data {:age integer?}}
+          new {:name String :data {:age integer?
+                                   :home string?}}]
+      (is (thrown? AssertionError (compatible old new)))))
+  (testing "you can add optional keys to existing schemas, nested"
+    (let [old {:name String :data {:age integer?}}
+          new {:name String :data {:age integer?
+                                   :home [:O string? "unknown"]}}]
+      (is (nil? (compatible old new))))))

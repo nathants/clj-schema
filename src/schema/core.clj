@@ -1,6 +1,7 @@
 (ns schema.core
   (:require [clojure.pprint :refer [pprint]]
-            [clojure.string :as s])
+            [clojure.string :as s]
+            [clojure.set :as set])
   (:import clojure.lang.LazySeq
            clojure.lang.Cons))
 
@@ -27,7 +28,31 @@
                         (->> (println "disable schema:"))))
 
 ;; TODO write backwards compatability checker for two schema values.
-(defn compatible [old new] false)
+(defn compatible [old new]
+  "you can only add new keys to schemas, and their values must be
+  optional. you can never change existing keys. schema validation
+  ignores unknown keys, so as long as this compatability is
+  maintained, old code can use new data (ignores keys unknown in the
+  past), and new code can use old data (all new keys are optional and
+  have default values)."
+  (assert (map? old))
+  (assert (map? new))
+  (let [ks-old (set (keys old))
+        ks-new (set (keys new))
+        ks-added (set/difference ks-new ks-old)]
+    (assert (set/subset? ks-old ks-new) (str "new schema is missing keys from old schema: " (set/difference ks-old ks-new)))
+    (doseq [[k v] old]
+      (let [v2 (get new k)]
+        (if (map? v)
+          (do (assert (map? v2))
+              (compatible v v2))
+          (assert (= v v2) (str "new schema changes existing value for key " k ", " v " != " v2)))))
+    (doseq [k ks-added]
+      (let [v (get new k)]
+        (assert (vector? v) v)
+        (assert (= 3 (count v) ) v)
+        (assert (= :O (first v)) v)))))
+
 
 ;; TODO have functions that translate to and from json mode. sets and
 ;; lists become arrays, types are converted to a namespaced keyword,
@@ -124,7 +149,7 @@
            (~name schema# (var-get value#))
            (set? schema#)
            (do (assert (set? value#) (error-message value# "is not a set"))
-               (assert (= (count schema#) 1) (error-message "set schemas represent homogenous sets and must (= 1 (count schema#))"))
+               (assert (= (count schema#) 1) (error-message "set schemas represent homogenous sets and must (= 1 (count schema))"))
                (set (map #(~name (first schema#) %) value#)))
            (map? schema#)
            (do (assert (map? value#) (error-message value# "is not a map"))
@@ -148,7 +173,7 @@
                                             (remove #{::fail})
                                             first)]
                          (vswap! -value# assoc k# (~name (get schema# schema-k#) v#))
-                         (assert (not ~'exact-match) (error-message k# "does not match schema# keys")))))
+                         (assert (not ~'exact-match) (error-message k# "does not match schema keys")))))
                    ;; check for items in schema# missing in value#, filling in optional value#
                    (doseq [[k# v#] schema#]
                      (let [k# (if (var? k#) (var-get k#) k#)
@@ -158,7 +183,7 @@
                            (cond
                              (and (sequential? v#)
                                   (= :O (first v#)))
-                             (do (assert (= 3 (count v#)) (error-message ":O schema# should be [:O, schema#, default-value]"))
+                             (do (assert (= 3 (count v#)) (error-message ":O schema should be [:O, schema, default-value]"))
                                  (vswap! -value# assoc k# (apply ~name (rest v#))))
                              (not (or (and (sequential? k#) (-schema-commands (first k#)))
                                       (= :Any k#)
@@ -173,7 +198,7 @@
                  (get -schema-commands (first schema#))
                  (condp = (first schema#)
                    :O
-                   (do (assert (= 3 (count schema#)) (error-message ":O schema# should be [:O, schema#, default-value]"))
+                   (do (assert (= 3 (count schema#)) (error-message ":O schema should be [:O, schema, default-value]"))
                        (~name (second schema#) value#))
                    :U ;; TODO is there an fp way to do this that is *more* elegant than current implementation?
                    (let [_# (assert (> (count schema#) 1) (error-message ":U types cannot be empty"))
@@ -202,16 +227,16 @@
                    :fn
                    (assert false "TODO implement me. how does this differ from python?"))
                  (vector? schema#)
-                 (do (assert (= (count schema#) 1) (error-message "vector schemas represent homogenous seqs and must (= 1 (count schema#))"))
+                 (do (assert (= (count schema#) 1) (error-message "vector schemas represent homogenous seqs and must (= 1 (count schema))"))
                      (mapv #(~name (first schema#) %) value#))
                  :else
-                 (do (assert (= (count schema#) (count value#)) (error-message "value# mismatched length of schema#," (count value#) "!=" (count schema#)))
+                 (do (assert (= (count schema#) (count value#)) (error-message "value mismatched length of schema," (count value#) "!=" (count schema#)))
                      (mapv ~name schema# value#))))
            (class? schema#)
            (do (assert (instance? schema# value#) (error-message value# "is not a" (pretty-class schema#)))
                value#)
            (fn? schema#)
-           (do (assert (schema# value#) (error-message "failed predicate schema#"))
+           (do (assert (schema# value#) (error-message "failed predicate schema"))
                value#)
            :else
            (do (assert (= schema# value#) (error-message value# "does not equal" schema#))
