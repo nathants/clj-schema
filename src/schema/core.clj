@@ -272,17 +272,8 @@
            [x y]
            (+ x y))"
   ;; TODO support generics? [[:T] -> [:T]]
-  ;; TODO completely ignore & {:keys [blah]}
   ;; TODO add support for arity overloading
   ;; TODO multiple arities
-  ;; TODO variadic sig support
-  ;; TODO & {:keys [...]} support
-  ;; (deftest test-defnv-variadic
-  ;;   (defnv f
-  ;;     [& String -> String]
-  ;;     [& xs]
-  ;;     (apply str xs))
-  ;;   (is (= "123" (f "1" "2" "3"))))
   [& forms]
   (let [[name doc sig args & body]
         (if (string? (second forms))
@@ -290,9 +281,15 @@
           (apply vector (first forms) "" (drop 1 forms)))
         _ (assert (->> sig (filter #{'->}) count (= 1)) (error-message "sig should have '-> in it, not:" sig))
         _ (assert (->> sig (partition-by #{'->}) second count (= 1)) (error-message "sig should have only one schema to the right of '->, not:" sig))
-        [arg-schema _ [return-schema]] (if (= '-> (first sig))
+        [pos-schema _ [return-schema]] (if (= '-> (first sig))
                                          [() nil [(last sig)]]
-                                         (partition-by #{'->} sig))]
+                                         (partition-by #{'->} sig))
+        pos-schema (if (= '& (first pos-schema))
+                     (concat [nil] pos-schema)
+                     pos-schema)
+        [pos-schema _ [variadic-schema]] (concat (partition-by #(= '& %) pos-schema) [nil nil])
+        _ (assert (or (nil? variadic-schema) (vector? variadic-schema) (map? variadic-schema)) (error-message "variadic schema should be vector or map, not:" variadic-schema))
+        n-args (count (remove nil? pos-schema))]
     (if *disable-schema*
       `(defn ~name
          ~doc
@@ -301,10 +298,22 @@
       `(defn ~name
          {:doc ~doc :arglists '(~args)}
          [& args#]
-         (assert (= (count args#) (count '~args)) (str "unknown arity: " (count args#) " for fn: " ~name))
-         (let [~args (for [[i# a# s#] (map vector (range) (list ~@arg-schema) (or args# ()))]
-                       (with-update-exception AssertionError (str "\nschema check failed for args to fn: " ~name ", for pos arg: " i#) :after true
-                         (validate a# s#)))
+         (assert (or (= (count args#) (count '~args))
+                     (and (some #{'&} '~args)
+                          (>= (count args#) (count (take-while #(not= '& %) '~args)))))
+                 (str "unknown arity: " (count args#) " for fn: " ~name))
+         (let [[pos-args# variadic-args#] (split-at ~n-args (or args# ()))
+               validated-args# (doall
+                                (concat
+                                 (for [[i# s# a#] (map vector (range) (list ~@pos-schema) pos-args#)]
+                                   (with-update-exception AssertionError (str "\nschema check failed for args to fn: " ~name ", for argument index: " i#) :after true
+                                     (validate s# a#)))
+                                 (when (and ~variadic-schema variadic-args#)
+                                   (with-update-exception AssertionError (str "\nschema check failed for variadic args to fn: " ~name) :after true
+                                     (if (map? ~variadic-schema)
+                                       (apply concat (seq (validate ~variadic-schema (apply hash-map  variadic-args#))))
+                                       (validate ~variadic-schema variadic-args#))))))
+               ~args validated-args#
                res# (do ~@body)]
            (with-update-exception AssertionError (str "\nschema check failed for return value from fn: " ~name) :after true
              (validate ~return-schema res#)))))))

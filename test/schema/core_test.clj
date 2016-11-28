@@ -86,6 +86,43 @@
     (is (= 0 (first xs)))
     (is (thrown? AssertionError (second xs)))))
 
+(deftest test-defnv-variadic
+  (defnv f
+    [integer? & [integer?] -> String]
+    [x & ys]
+    (apply str x ys))
+  (is (= "123" (f 1 2 3)))
+  (is (thrown? AssertionError (f 1 2 "3")))
+  (is (thrown? AssertionError (f "1" 2 3)))
+  (is (thrown? AssertionError (f))))
+
+(deftest test-defnv-variadic-without-first-arg
+  (defnv f
+    [& [integer?] -> String]
+    [& ys]
+    (apply str ys))
+  (is (= "123" (f 1 2 3)))
+  (is (thrown? AssertionError (f 1 "2" 3))))
+
+(deftest test-defnv-variadic-unpacking
+  (defnv f
+    [string? & {:alias [:O string? "no-alias"]} -> :Any]
+    [name & {:keys [alias]}]
+    (str alias " " name))
+  (is (= "biggie bob" (f "bob" :alias "biggie")))
+  (is (= "no-alias bob" (f "bob")))
+  (is (thrown? AssertionError (f 123 :alias "biggie")))
+  (is (thrown? AssertionError (f "bob" :alias 123))))
+
+(deftest test-defnv-variadic-unpacking-without-first-arg
+  (defnv f
+    [& {:alias [:O string? "no-alias"]} -> :Any]
+    [& {:keys [alias]}]
+    (str alias))
+  (is (= "biggie" (f :alias "biggie")))
+  (is (= "no-alias" (f)))
+  (is (thrown? AssertionError (f :alias 123))))
+
 (deftest eager-and-lazy-seq-validation
   (let [schema [Long]]
     (testing "eager validation"
