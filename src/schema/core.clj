@@ -21,21 +21,20 @@
 ;; logged warnings to defnv and validate calls that use optional
 ;; values.
 
-
 (def *disable-update-exception*
   "there is zero cost in the happy path, ie no exceptions
   thrown. however, this is significant cost in the sad path. this cost
   is paid to get very helpful messages about what parts of the schema
   mismatche the value. likely you will want these messages for dev,
   but never for prod."
-  (doto (boolean (System/getenv "DISABLE_HELPFUL_SCHEMA_ERRORS"))
+  (doto (boolean (System/getenv "WORSE_ERRORS"))
     (->> (println "disable helpful schema errors:"))))
 
 (def *disable-schema*
   "schema validation is costly. by default, schemas are disabled. you
   likely want them for dev, but not for prod. however, they may be
   useful in prod, if validation is always required."
-  (doto (not (System/getenv "ENABLE_SCHEMA"))
+  (doto (boolean (System/getenv "DISABLE_SCHEMA"))
     (->> (println "disable schema:"))))
 
 (defn compatible
