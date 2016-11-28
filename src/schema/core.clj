@@ -27,14 +27,14 @@
   is paid to get very helpful messages about what parts of the schema
   mismatche the value. likely you will want these messages for dev,
   but never for prod."
-  (doto (boolean (System/getenv "WORSE_ERRORS"))
-    (->> (println "disable helpful schema errors:"))))
+  (doto (boolean (System/getenv "SCHEMA_WORSE_ERRORS"))
+    (->> (println "disable helpful schema error messages:"))))
 
 (def *disable-schema*
   "schema validation is costly. by default, schemas are disabled. you
   likely want them for dev, but not for prod. however, they may be
   useful in prod, if validation is always required."
-  (doto (boolean (System/getenv "DISABLE_SCHEMA"))
+  (doto (boolean (System/getenv "SCHEMA_DISABLE"))
     (->> (println "disable schema:"))))
 
 (defn compatible
