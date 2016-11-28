@@ -7,13 +7,10 @@
 
 ;; TODO add fnv and fnv! to complement defnv and defnv!
 
-;; TODO type hints break defnv
-
 ;; TODO
 ;;
 ;; drop pprint. it uses STM and that is very bad for perf.
 ;; https://github.com/brandonbloom/fipp
-
 
 ;; TODO
 ;;
