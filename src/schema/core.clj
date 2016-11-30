@@ -1,6 +1,7 @@
 (ns schema.core
   (:require [clojure.pprint :refer [pprint]]
             [clojure.string :as s]
+            [clojure.walk :as walk]
             [clojure.set :as set])
   (:import clojure.lang.LazySeq
            clojure.lang.Cons))
@@ -95,18 +96,26 @@
     (map #(str (apply str (repeat n " ")) %))
     (s/join "\n")))
 
-(defn pretty-class
-  [c]
-  (second (s/split (str c) #" ")))
+(defn pretty-fn-names
+  [m]
+  (walk/postwalk #(if-not (fn? %)
+                    %
+                    (-> %
+                      pr-str
+                      (s/replace #".*\[(.*)?\].*" "$1")
+                      (s/split #"\-\-\d+")
+                      first
+                      keyword))
+                 m))
 
 (defn helpful-message
   [schema value]
   (str "schema: "
-       (pretty-class (type schema))
+       (pr-str (type schema))
        "\n"
-       (indent 8 (with-out-str (pprint schema)))
+       (indent 8 (with-out-str (pprint (pretty-fn-names schema))))
        "\nvalue:  "
-       (pretty-class (type value))
+       (pr-str (type value))
        "\n"
        (indent 8 (with-out-str (pprint value)))))
 
@@ -235,7 +244,7 @@
               (do (assert (= (count schema) (count value)) (error-message "value mismatched length of schema," (count value) "!=" (count schema)))
                   (mapv -validate schema value))))
         (class? schema)
-        (do (assert (instance? schema value) (error-message value "is not a" (pretty-class schema)))
+        (do (assert (instance? schema value) (error-message value "is not a" (pr-str schema)))
             value)
         (fn? schema)
         (do (assert (schema value) (error-message "failed predicate schema"))
