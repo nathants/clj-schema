@@ -274,6 +274,20 @@
            (-validate schema# value# :exact-match exact-match#))))))
 
 (defn chan
+  ;; you probably want to use validated channels with something like
+  ;; this, that throws anything throwable taken from the channel.
+  ;; (defmacro <?
+  ;;   [port]
+  ;;   `(let [x# (a/<! ~port)]
+  ;;      (if (instance? Throwable x#)
+  ;;        (throw x#)
+  ;;        x#)))
+  ;; (defmacro <??
+  ;;   [port]
+  ;;   `(let [x# (a/<!! ~port)]
+  ;;      (if (instance? Throwable x#)
+  ;;        (throw x#)
+  ;;        x#)))
   [buf-or-n schema]
   (a/chan buf-or-n
           (map #(if (nil? %)
