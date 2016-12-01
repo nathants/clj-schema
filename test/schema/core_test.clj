@@ -1,9 +1,19 @@
 (ns schema.core-test
   (:import clojure.lang.LazySeq)
   (:require [clojure.test :refer :all]
-            [schema.core :refer :all]))
+            [schema.core :refer :all]
+            [clojure.core.async :as a]))
 
 ;; clojure specific tests
+
+(deftest channels
+  (let [c (chan 10 keyword?)]
+    (a/>!! c :a)
+    (a/>!! c "b")
+    (a/close! c)
+    (is (= :a (a/<!! c)))
+    (is (instance? AssertionError (a/<!! c)))
+    (is (nil? (a/<!! c)))))
 
 (deftest resolve-var-keys-in-defnv-maps
   (defnv f

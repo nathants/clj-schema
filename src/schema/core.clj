@@ -1,5 +1,6 @@
 (ns schema.core
   (:require [clojure.pprint :refer [pprint]]
+            [clojure.core.async :as a]
             [clojure.string :as s]
             [clojure.walk :as walk]
             [clojure.set :as set])
@@ -111,7 +112,9 @@
 (defn helpful-message
   [schema value]
   (str "schema: "
-       (pr-str (type schema))
+       (if (fn? schema)
+         "fn"
+         (pr-str (type schema)))
        "\n"
        (indent 8 (with-out-str (pprint (pretty-fn-names schema))))
        "\nvalue:  "
@@ -269,6 +272,16 @@
                   (not (realized? value#)))
            (map #(-validate (first schema#) % :exact-match exact-match#) value#)
            (-validate schema# value# :exact-match exact-match#))))))
+
+(defn chan
+  [buf-or-n schema]
+  (a/chan buf-or-n
+          (map #(if (nil? %)
+                  %
+                  (try
+                    (validate schema %)
+                    (catch Throwable ex
+                      ex))))))
 
 (defmacro defnv
   "define validated function.
