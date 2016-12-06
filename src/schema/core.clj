@@ -40,6 +40,8 @@
     (->> (println "disable schema:"))))
 
 (defn compatible
+  ;; TODO we should be able to compare schemas of defnv's and fnv's
+  ;; between to commits of a codebase, and check for compatability!
   "you can only add new keys to schemas, and their values must be
   optional. you can never change existing keys. schema validation
   ignores unknown keys, so as long as this compatability is
@@ -273,7 +275,9 @@
            (map #(-validate (first schema#) % :exact-match exact-match#) value#)
            (-validate schema# value# :exact-match exact-match#))))))
 
+;; TODO move this into a sep repo, so clj-schema remains depedency free.
 (defn chan
+  ;; note: minimun buffer size is 1, because xform requires it.
   ;; you probably want to use validated channels with something like
   ;; this, that throws anything throwable taken from the channel.
   ;; (defmacro <?
@@ -289,10 +293,14 @@
   ;;        (throw x#)
   ;;        x#)))
   [buf-or-n schema]
-  (a/chan buf-or-n
+  (a/chan (if (or (nil? buf-or-n)
+                  (number? buf-or-n))
+            (min 1 buf-or-n)
+            buf-or-n)
           (map #(if (nil? %)
                   %
                   (try
+                    (println :wat %)
                     (validate schema %)
                     (catch Throwable ex
                       ex))))))

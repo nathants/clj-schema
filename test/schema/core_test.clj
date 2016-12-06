@@ -7,12 +7,23 @@
 ;; clojure specific tests
 
 (deftest channels
-  (let [c (chan 10 keyword?)]
+  (let [c (chan 1 keyword?)]
+    (a/go
+      (a/>! c :a)
+      (a/>! c "not keyword")
+      (a/close! c))
+    (a/<!! (a/go
+             (is (= :a (a/<! c)))
+             (is (instance? AssertionError (a/<! c)))
+             (is (nil? (a/<!! c)))))))
+
+(deftest channels-blocking
+  (let [c (chan 1 keyword?)]
     (a/>!! c :a)
-    (a/>!! c "b")
-    (a/close! c)
     (is (= :a (a/<!! c)))
+    (a/>!! c "not keyword")
     (is (instance? AssertionError (a/<!! c)))
+    (a/close! c)
     (is (nil? (a/<!! c)))))
 
 (deftest resolve-var-keys-in-defnv-maps
