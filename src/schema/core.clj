@@ -104,9 +104,14 @@
   (walk/postwalk #(if-not (fn? %)
                     %
                     (-> %
-                      pr-str
+                      str
                       (s/replace #".*\[(.*)?\].*" "$1")
-                      (s/split #"\-\-\d+")
+                      (s/replace #"_QMARK_" "?")
+                      (s/replace #"_BANG_" "!")
+                      (s/replace #"_GT_" ">")
+                      (s/replace #"_LT_" "<")
+                      (s/replace #"\$" "/")
+                      (s/split #"(__\d+)?@\d+")
                       first
                       keyword))
                  m))
@@ -300,7 +305,6 @@
           (map #(if (nil? %)
                   %
                   (try
-                    (println :wat %)
                     (validate schema %)
                     (catch Throwable ex
                       ex))))))
